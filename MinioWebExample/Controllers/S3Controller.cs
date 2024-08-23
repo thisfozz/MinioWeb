@@ -64,7 +64,6 @@ public class S3Controller : ControllerBase
 
         customFileName ??= $"uploaded-file-{Guid.NewGuid()}";
 
-        // Передаем параметры в UploadFile
         return await UploadFile(file, bucketName, customFileName);
     }
 
