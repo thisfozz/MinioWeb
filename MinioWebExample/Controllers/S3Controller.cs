@@ -1,14 +1,8 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Minio;
 using Minio.ApiEndpoints;
-using Minio.DataModel;
 using Minio.DataModel.Args;
-using Minio.Exceptions;
-using System;
-using System.Collections.Generic;
-using System.Drawing;
 using System.Reactive.Linq;
-using System.Security.AccessControl;
 using System.Text;
 
 namespace MinioWebExample.Controllers;
@@ -49,8 +43,6 @@ public class S3Controller : ControllerBase
         return Ok(sb.ToString());
     }
 
-
-    //create
     [HttpPost]
     [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
     public async Task<IActionResult> Create(IFormFile file, [FromQuery] string? bucketName = null, [FromQuery] string? customFileName = null)
@@ -67,42 +59,6 @@ public class S3Controller : ControllerBase
         return await UploadFile(file, bucketName, customFileName);
     }
 
-
-    [HttpPost]
-    [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
-    private async Task<IActionResult> UploadFile(IFormFile file, string bucketName, string objectName, string contentType = "application/octet-stream")
-    {
-        try
-        {
-            var args = new BucketExistsArgs().WithBucket(bucketName);
-            var found = await _minioClient.BucketExistsAsync(args);
-
-            if (!found)
-            {
-                await _minioClient.MakeBucketAsync(new MakeBucketArgs().WithBucket(bucketName));
-            }
-
-            using (var stream = file.OpenReadStream())
-            {
-                var putArgs = new PutObjectArgs()
-                    .WithBucket(bucketName)
-                    .WithObject(objectName)
-                    .WithStreamData(stream)
-                    .WithObjectSize(file.Length)
-                    .WithContentType(contentType);
-
-                await _minioClient.PutObjectAsync(putArgs);
-            }
-
-            return Ok(objectName);
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, $"Ошибка при загрузке файла: {ex.Message}");
-        }
-    }
-
-    //read
     [HttpGet("file/{bucketName}/{fileName}")]
     [ProducesResponseType(typeof(FileStreamResult), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetFile(string bucketName, string fileName)
@@ -154,7 +110,6 @@ public class S3Controller : ControllerBase
         }
     }
 
-    //update
     [HttpPut("{bucketName}/{fileName}")]
     [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdateFile(string bucketName, string fileName, IFormFile file)
@@ -174,7 +129,41 @@ public class S3Controller : ControllerBase
         }
     }
 
-    //delete
+
+    [HttpPost]
+    [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
+    private async Task<IActionResult> UploadFile(IFormFile file, string bucketName, string objectName, string contentType = "application/octet-stream")
+    {
+        try
+        {
+            var args = new BucketExistsArgs().WithBucket(bucketName);
+            var found = await _minioClient.BucketExistsAsync(args);
+
+            if (!found)
+            {
+                await _minioClient.MakeBucketAsync(new MakeBucketArgs().WithBucket(bucketName));
+            }
+
+            using (var stream = file.OpenReadStream())
+            {
+                var putArgs = new PutObjectArgs()
+                    .WithBucket(bucketName)
+                    .WithObject(objectName)
+                    .WithStreamData(stream)
+                    .WithObjectSize(file.Length)
+                    .WithContentType(contentType);
+
+                await _minioClient.PutObjectAsync(putArgs);
+            }
+
+            return Ok(objectName);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, $"Ошибка при загрузке файла: {ex.Message}");
+        }
+    }
+
     [HttpDelete("{bucketName}/{fileName}")]
     public async Task<IActionResult> DeleteFile(string bucketName, string fileName)
     {
@@ -208,16 +197,16 @@ public class S3Controller : ControllerBase
                 .ForEachAsync(async obj =>
                 {
                     objectKeys.Add(obj.Key);
-                    if(objectKeys.Count > packSizeForRemoval)
+                    if (objectKeys.Count > packSizeForRemoval)
                     {
-                        DeleteObjectsInBatch(bucketName, objectKeys);
+                        await DeleteObjectsInBatch(bucketName, objectKeys);
                         objectKeys.Clear();
                     }
                 });
 
             if (objectKeys.Count > 0)
             {
-                DeleteObjectsInBatch(bucketName, objectKeys);
+                await DeleteObjectsInBatch(bucketName, objectKeys);
             }
 
             var deleteArgs = new RemoveBucketArgs().WithBucket(bucketName);
